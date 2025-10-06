@@ -167,10 +167,13 @@ interface BaseItemGroupProps {
   baseItemName: string
   items: ReceptionExcelRow[]
   onItemUpdate?: (itemIndex: number, updates: Partial<ReceptionExcelRow>) => void
+  onBaseNameUpdate?: (newName: string) => void
 }
 
-const BaseItemGroup: React.FC<BaseItemGroupProps> = ({ baseItemName, items, onItemUpdate }) => {
+const BaseItemGroup: React.FC<BaseItemGroupProps> = ({ baseItemName, items, onItemUpdate, onBaseNameUpdate }) => {
   const [isExpanded, setIsExpanded] = useState(true)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editName, setEditName] = useState(baseItemName)
 
   const incomeItems = items.filter(item => item.transactionType === 'Доходы')
   const expenseItems = items.filter(item => item.transactionType === 'Расходы')
@@ -179,18 +182,66 @@ const BaseItemGroup: React.FC<BaseItemGroupProps> = ({ baseItemName, items, onIt
   const expenseTotal = expenseItems.reduce((sum, item) => sum + (item.quantity * item.price), 0)
   const profit = incomeTotal + expenseTotal
 
+  const handleNameSave = () => {
+    if (onBaseNameUpdate && editName !== baseItemName && editName.trim()) {
+      onBaseNameUpdate(editName.trim())
+    }
+    setIsEditingName(false)
+  }
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleNameSave()
+    } else if (e.key === 'Escape') {
+      setEditName(baseItemName)
+      setIsEditingName(false)
+    }
+  }
+
   return (
     <div className="bg-blue-50 rounded-lg px-3 py-2">
-      <div
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between cursor-pointer"
-      >
-        <h3 className="text-sm font-medium text-gray-800 flex-1">{baseItemName}</h3>
+      <div className="flex items-center justify-between">
+        <div
+          className="flex-1"
+          onClick={(e) => {
+            if (!isEditingName) {
+              setIsExpanded(!isExpanded)
+            }
+          }}
+        >
+          {isEditingName && onBaseNameUpdate ? (
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={handleNameKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+              className="w-full px-2 py-1 text-sm font-medium text-gray-800 border border-blue-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+            />
+          ) : (
+            <h3
+              className={`text-sm font-medium text-gray-800 ${onBaseNameUpdate ? 'cursor-pointer hover:text-blue-600' : 'cursor-pointer'}`}
+              onClick={(e) => {
+                if (onBaseNameUpdate) {
+                  e.stopPropagation()
+                  setIsEditingName(true)
+                }
+              }}
+            >
+              {baseItemName}
+            </h3>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-green-600 font-medium">↗ {incomeTotal.toLocaleString('ru-RU')} ₽</span>
           <span className="text-xs text-red-600 font-medium">↘ {Math.abs(expenseTotal).toLocaleString('ru-RU')} ₽</span>
           <span className="text-xs text-blue-600 font-semibold">₽ {profit.toLocaleString('ru-RU')} ₽</span>
-          <button className="text-gray-600">
+          <button
+            className="text-gray-600"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
             {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
         </div>
@@ -224,9 +275,10 @@ interface WorkGroupProps {
   workGroup: string
   items: ReceptionExcelRow[]
   onItemUpdate?: (itemIndex: number, updates: Partial<ReceptionExcelRow>) => void
+  onBaseNameUpdate?: (oldBaseName: string, newBaseName: string) => void
 }
 
-const WorkGroup: React.FC<WorkGroupProps> = ({ workGroup, items, onItemUpdate }) => {
+const WorkGroup: React.FC<WorkGroupProps> = ({ workGroup, items, onItemUpdate, onBaseNameUpdate }) => {
   const [isExpanded, setIsExpanded] = useState(true)
 
   const baseItemMap = new Map<string, ReceptionExcelRow[]>()
@@ -274,6 +326,9 @@ const WorkGroup: React.FC<WorkGroupProps> = ({ workGroup, items, onItemUpdate })
                 const globalIdx = items.indexOf(baseItems[idx])
                 onItemUpdate(globalIdx, updates)
               } : undefined}
+              onBaseNameUpdate={onBaseNameUpdate ? (newName) => {
+                onBaseNameUpdate(baseName, newName)
+              } : undefined}
             />
           ))}
         </div>
@@ -286,13 +341,11 @@ interface PositionGroupProps {
   positionNumber: number
   items: ReceptionExcelRow[]
   onItemUpdate?: (itemIndex: number, updates: Partial<ReceptionExcelRow>) => void
-  onMotorNameUpdate?: (newName: string) => void
+  onBaseNameUpdate?: (oldBaseName: string, newBaseName: string) => void
 }
 
-const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, onItemUpdate, onMotorNameUpdate }) => {
+const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, onItemUpdate, onBaseNameUpdate }) => {
   const [isExpanded, setIsExpanded] = useState(true)
-  const [isEditingMotorName, setIsEditingMotorName] = useState(false)
-  const [editMotorName, setEditMotorName] = useState(items[0].serviceName)
   const firstItem = items[0]
 
   const workGroupMap = new Map<string, ReceptionExcelRow[]>()
@@ -311,61 +364,18 @@ const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, on
     .reduce((sum, item) => sum + (item.quantity * item.price), 0)
   const profit = incomeTotal + expenseTotal
 
-  const handleMotorNameSave = () => {
-    if (onMotorNameUpdate && editMotorName !== firstItem.serviceName && editMotorName.trim()) {
-      onMotorNameUpdate(editMotorName.trim())
-    }
-    setIsEditingMotorName(false)
-  }
-
-  const handleMotorNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleMotorNameSave()
-    } else if (e.key === 'Escape') {
-      setEditMotorName(firstItem.serviceName)
-      setIsEditingMotorName(false)
-    }
-  }
-
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
-      <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-t-lg">
-        <div
-          className="flex items-center gap-3 flex-1"
-          onClick={(e) => {
-            if (!isEditingMotorName) {
-              setIsExpanded(!isExpanded)
-            }
-          }}
-        >
+      <div
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-t-lg cursor-pointer"
+      >
+        <div className="flex items-center gap-3 flex-1">
           <span className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-sm font-bold">
             {positionNumber}
           </span>
-          <div className="flex-1">
-            {isEditingMotorName && onMotorNameUpdate ? (
-              <input
-                type="text"
-                value={editMotorName}
-                onChange={(e) => setEditMotorName(e.target.value)}
-                onBlur={handleMotorNameSave}
-                onKeyDown={handleMotorNameKeyDown}
-                onClick={(e) => e.stopPropagation()}
-                autoFocus
-                className="w-full px-2 py-1 text-sm font-semibold text-gray-900 border border-blue-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            ) : (
-              <h2
-                className={`text-sm font-semibold text-gray-900 ${onMotorNameUpdate ? 'cursor-pointer hover:text-blue-600' : ''}`}
-                onClick={(e) => {
-                  if (onMotorNameUpdate) {
-                    e.stopPropagation()
-                    setIsEditingMotorName(true)
-                  }
-                }}
-              >
-                {firstItem.serviceName}
-              </h2>
-            )}
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">{firstItem.serviceName}</h2>
             <p className="text-xs text-gray-600">{firstItem.subdivisionName}</p>
           </div>
         </div>
@@ -373,10 +383,7 @@ const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, on
           <span className="text-sm text-green-600 font-medium">↗ {incomeTotal.toLocaleString('ru-RU')} ₽</span>
           <span className="text-sm text-red-600 font-medium">↘ {Math.abs(expenseTotal).toLocaleString('ru-RU')} ₽</span>
           <span className="text-sm text-blue-600 font-semibold">₽ {profit.toLocaleString('ru-RU')} ₽</span>
-          <button
-            className="text-gray-600"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
+          <button className="text-gray-600">
             {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
           </button>
         </div>
@@ -393,6 +400,7 @@ const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, on
                 const globalIdx = items.indexOf(workItems[idx])
                 onItemUpdate(globalIdx, updates)
               } : undefined}
+              onBaseNameUpdate={onBaseNameUpdate}
             />
           ))}
         </div>
@@ -438,12 +446,17 @@ export const ReceptionPreview: React.FC<ReceptionPreviewProps> = ({ data, onData
     }
   }
 
-  const handleMotorNameUpdate = (positionNumber: number, newMotorName: string) => {
+  const handleBaseNameUpdate = (positionNumber: number, oldBaseName: string, newBaseName: string) => {
     if (!onDataChange) return
 
     const newData = data.map((row) => {
       if (row.positionNumber === positionNumber) {
-        return { ...row, serviceName: newMotorName }
+        const currentBaseName = row.itemName.split('_ID_')[0].trim()
+        if (currentBaseName === oldBaseName) {
+          const idPart = row.itemName.includes('_ID_') ? row.itemName.split('_ID_')[1] : ''
+          const newItemName = idPart ? `${newBaseName}_ID_${idPart}` : newBaseName
+          return { ...row, itemName: newItemName }
+        }
       }
       return row
     })
@@ -480,7 +493,7 @@ export const ReceptionPreview: React.FC<ReceptionPreviewProps> = ({ data, onData
             positionNumber={positionNumber}
             items={items}
             onItemUpdate={onDataChange ? (idx, updates) => handleItemUpdate(positionNumber, idx, updates) : undefined}
-            onMotorNameUpdate={onDataChange ? (newName) => handleMotorNameUpdate(positionNumber, newName) : undefined}
+            onBaseNameUpdate={onDataChange ? (oldName, newName) => handleBaseNameUpdate(positionNumber, oldName, newName) : undefined}
           />
         ))}
       </div>
