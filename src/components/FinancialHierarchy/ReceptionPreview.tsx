@@ -286,10 +286,13 @@ interface PositionGroupProps {
   positionNumber: number
   items: ReceptionExcelRow[]
   onItemUpdate?: (itemIndex: number, updates: Partial<ReceptionExcelRow>) => void
+  onMotorNameUpdate?: (newName: string) => void
 }
 
-const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, onItemUpdate }) => {
+const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, onItemUpdate, onMotorNameUpdate }) => {
   const [isExpanded, setIsExpanded] = useState(true)
+  const [isEditingMotorName, setIsEditingMotorName] = useState(false)
+  const [editMotorName, setEditMotorName] = useState(items[0].serviceName)
   const firstItem = items[0]
 
   const workGroupMap = new Map<string, ReceptionExcelRow[]>()
@@ -308,18 +311,61 @@ const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, on
     .reduce((sum, item) => sum + (item.quantity * item.price), 0)
   const profit = incomeTotal + expenseTotal
 
+  const handleMotorNameSave = () => {
+    if (onMotorNameUpdate && editMotorName !== firstItem.serviceName && editMotorName.trim()) {
+      onMotorNameUpdate(editMotorName.trim())
+    }
+    setIsEditingMotorName(false)
+  }
+
+  const handleMotorNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleMotorNameSave()
+    } else if (e.key === 'Escape') {
+      setEditMotorName(firstItem.serviceName)
+      setIsEditingMotorName(false)
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
-      <div
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-t-lg cursor-pointer"
-      >
-        <div className="flex items-center gap-3 flex-1">
+      <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-t-lg">
+        <div
+          className="flex items-center gap-3 flex-1"
+          onClick={(e) => {
+            if (!isEditingMotorName) {
+              setIsExpanded(!isExpanded)
+            }
+          }}
+        >
           <span className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-sm font-bold">
             {positionNumber}
           </span>
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">{firstItem.serviceName}</h2>
+          <div className="flex-1">
+            {isEditingMotorName && onMotorNameUpdate ? (
+              <input
+                type="text"
+                value={editMotorName}
+                onChange={(e) => setEditMotorName(e.target.value)}
+                onBlur={handleMotorNameSave}
+                onKeyDown={handleMotorNameKeyDown}
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+                className="w-full px-2 py-1 text-sm font-semibold text-gray-900 border border-blue-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            ) : (
+              <h2
+                className={`text-sm font-semibold text-gray-900 ${onMotorNameUpdate ? 'cursor-pointer hover:text-blue-600' : ''}`}
+                onClick={(e) => {
+                  if (onMotorNameUpdate) {
+                    e.stopPropagation()
+                    setIsEditingMotorName(true)
+                  }
+                }}
+              >
+                {firstItem.serviceName}
+              </h2>
+            )}
             <p className="text-xs text-gray-600">{firstItem.subdivisionName}</p>
           </div>
         </div>
@@ -327,7 +373,10 @@ const PositionGroup: React.FC<PositionGroupProps> = ({ positionNumber, items, on
           <span className="text-sm text-green-600 font-medium">↗ {incomeTotal.toLocaleString('ru-RU')} ₽</span>
           <span className="text-sm text-red-600 font-medium">↘ {Math.abs(expenseTotal).toLocaleString('ru-RU')} ₽</span>
           <span className="text-sm text-blue-600 font-semibold">₽ {profit.toLocaleString('ru-RU')} ₽</span>
-          <button className="text-gray-600">
+          <button
+            className="text-gray-600"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
             {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
           </button>
         </div>
@@ -389,6 +438,18 @@ export const ReceptionPreview: React.FC<ReceptionPreviewProps> = ({ data, onData
     }
   }
 
+  const handleMotorNameUpdate = (positionNumber: number, newMotorName: string) => {
+    if (!onDataChange) return
+
+    const newData = data.map((row) => {
+      if (row.positionNumber === positionNumber) {
+        return { ...row, serviceName: newMotorName }
+      }
+      return row
+    })
+    onDataChange(newData)
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-gray-50 p-4 rounded-lg">
@@ -419,6 +480,7 @@ export const ReceptionPreview: React.FC<ReceptionPreviewProps> = ({ data, onData
             positionNumber={positionNumber}
             items={items}
             onItemUpdate={onDataChange ? (idx, updates) => handleItemUpdate(positionNumber, idx, updates) : undefined}
+            onMotorNameUpdate={onDataChange ? (newName) => handleMotorNameUpdate(positionNumber, newName) : undefined}
           />
         ))}
       </div>
